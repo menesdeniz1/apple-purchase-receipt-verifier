@@ -6,7 +6,8 @@ This file lives only on the fork's `handoff/pr535` branch. That branch starts fr
 
 ## Read this first
 
-- **Do not push to `review/pr535-fixes`.** It feeds PR 544, which the repository owner can see, so a push changes that PR.
+- **PR 544 is closed and was not merged.** The `menesdeniz1` account closed it at 2026-11-08 19:29:09 UTC, with no comment. The reason is not recorded here. Ask the user before reopening it or opening another PR.
+- **Do not push to `review/pr535-fixes`.** It is the head of PR 544, which the repository owner can still see, so keep it at `012c84f9`.
 - **One security finding is with the user for private reporting. Its details are not here.** The user has not decided yet and nothing has been sent. Do not raise it in a public place. `SECURITY.md` asks for private reporting.
 - **Do not push, comment, review or message on `emindeniz99/apple-purchase-receipt-verifier`** unless the user says so. PR 544 was opened on one explicit approval, and that approval covered that PR only.
 - **Do not delete anything:** branches, clones, caches or logs. No force-push.
@@ -15,7 +16,7 @@ This file lives only on the fork's `handoff/pr535` branch. That branch starts fr
 
 | PR | Where | Base | Head | State |
 |---|---|---|---|---|
-| [544](https://github.com/emindeniz99/apple-purchase-receipt-verifier/pull/544) | Upstream | `claude/rust-core-migration-plan-lkq2zr` (`8c1de982`) | `menesdeniz1:review/pr535-fixes` (`012c84f9`) | Open, mergeable, no owner response, 21 commits, 52 files |
+| [544](https://github.com/emindeniz99/apple-purchase-receipt-verifier/pull/544) | Upstream | `claude/rust-core-migration-plan-lkq2zr` (`8c1de982`) | `menesdeniz1:review/pr535-fixes` (`012c84f9`) | **Closed, not merged**, no owner response, 21 commits, 52 files |
 | [1](https://github.com/menesdeniz1/apple-purchase-receipt-verifier/pull/1) | Fork | `main` (`fccf0c2b`) | `review/pr535-fixes` (`012c84f9`) | Open, CI only, not for upstream, keep it |
 | [535](https://github.com/emindeniz99/apple-purchase-receipt-verifier/pull/535) | Upstream | `main` | `claude/rust-core-migration-plan-lkq2zr` (`8c1de982`) | Open, the owner's PR being reviewed |
 
@@ -93,6 +94,7 @@ These were not changed. All but the last are also listed in the PR 544 descripti
 - **Go and Swift from source:** the committed modules lag the new wrappers until a release refreshes the pins.
 - **One rejected list stops a whole refresh:** a README sentence was added and the behaviour was not changed.
 - **`aprv-server` first `init` trace:** it exits 2 where the README says 70.
+- **Note on PR 544 being closed:** the owner can still read its description, but nothing is waiting on the owner while it is closed.
 - **§5 and §11 wording:** a non-null `revocationValidUntil` does not mean every accepted path is covered.
 - **Smaller items:**
   - `/v1/info` is not compared on `component_sha256`.
@@ -122,7 +124,7 @@ These were not changed. All but the last are also listed in the PR 544 descripti
 
 ## Next steps
 
-1. Wait for the owner's response on PR 544. Check with the user before changing the branch or commenting.
+1. Ask the user why PR 544 was closed and whether the work should go upstream at all. Do not reopen it, change the branch or comment until the user decides.
 2. Get the user's decision on the private security report.
 3. If the user turns the nightly on for the fork, run the Differential and record the result. Otherwise `88f7a8e0` stays unverified. New divergences go into R20 or R47, or get fixed. Never edit a case to make an implementation pass.
 4. Compile the README examples through a CI job, starting with the three named above.
