@@ -25,7 +25,8 @@ form of `init`'s configuration (Q30); on 2026-10-06 the owner's
 decision Q70 added R44, and the owner added R45 (Q71); on 2026-11-02
 the owner added R46 (ABI 0.2.0), which amends R23 and R24; on
 2026-11-04 R23 and R31 were amended to record `aprv-server`'s pool
-default (OD-15).
+default (OD-15); on 2026-11-05 the owner added R47 (certificate
+revocation, released with 0.14.0).
 
 The evidence is the 23 notes of 2026-09-25 to 2026-09-29 under
 [../evidence/](../evidence/), plus the 2026-09-30 note on the upstream
@@ -2727,6 +2728,176 @@ the ABI 0.2.0 plan). Amends R23 (the environment) and R24 (the type of
 
 ---
 
+## R47. Certificate revocation: a built-in list, `distrust`, and Apple's lists passed in
+
+**Status: accepted** (owner, 2026-11-05, on the plan's fourth version,
+after several adversarial review rounds). The contract is
+[docs/design/revocation.md](../design/revocation.md); the survey behind
+it is [the revocation survey][revsurvey]. Released with 0.14.0. Reverses
+SURFACE.md §3's plan of 2026-09-28 that a revoked certificate would be
+`INVALID_CERTIFICATE`, and docs/design/0.7-api.md's "Room for revocation
+checks later".
+
+- **The gap it closes:** the chain is judged at the payload's own date,
+  so a payload signed with a leaked Apple key and back-dated into its
+  certificate's validity window verified until a release removed the
+  root (THREAT-MODEL.md §3.10). Apple's own libraries check nothing
+  offline, and online they run OCSP only, with the validity date moved
+  to now, which fails every old JWS whose leaf has expired.
+- **Decision, three layers, all offline:** a built-in list compiled into
+  the core and into Java (`certs/revocations.json`, append-only, written
+  by `tools/refresh-apple-revocations.mjs` from Apple's lists and watched
+  weekly by `apple-revocation-watch.yml`); the caller's `distrust`
+  entries (issuer id and serial); and Apple's CRL files, downloaded by
+  the host on its own schedule and passed to `Config` as
+  `revocationLists`. No library opens a socket, starts a timer or keeps
+  an HTTP client: a host refreshes by building a new `Verifier`.
+- **Decision, a ninth reason:** `CERTIFICATE_REVOKED`, appended after
+  `INTERNAL_ERROR` in every package; 21003 at the endpoint; code 17 in
+  the C ABI. A distinct reason lets a caller alert on a revoked Apple key
+  instead of reading it as an expired certificate. It is a source break
+  for exhaustive matches (Swift `switch`, .NET `IVerifier`
+  implementers), accepted for that reason.
+- **Decision, the check's place:** after the path, the markers and the
+  signature, before the payload is read, so a revoked key cannot steer
+  the verdict to `UNREADABLE_PAYLOAD`. Per signer for a receipt, so
+  another genuine SignerInfo still verifies it.
+- **Decision, revocation ignores dates.** The holder of a leaked key
+  picks the payload's date, so a listed serial is revoked whatever its
+  `revocationDate`. Only `certificateHold` depends on time: it counts
+  while its list is fresh at the call's clock. A stale or missing list
+  passes (owner: no outage when Apple's CDN is down);
+  `revocationValidUntil` exposes it for monitoring.
+- **Decision, an issuer is a name and a key:** the issuer id hashes the
+  subject and the public key as encoded, because Apple's retired "Apple
+  Root Certificate Authority" shares Apple Root CA's key. That retired
+  name's list is refused.
+- **Decision, ignore versus refuse:** a list that no configured issuer
+  signed, or that is older than the built-in list's `newest` for its
+  issuer, is refused at build. A genuine list in a shape the profile does
+  not read (v1, no `nextUpdate`, an IssuingDistributionPoint, a delta,
+  an unknown critical extension, a duplicate serial) is ignored, so a
+  format change at Apple cannot stop a host from starting. Critical
+  extensions allowed: AuthorityKeyIdentifier and CRL Number on a list,
+  reasonCode and invalidityDate on an entry. An entry whose reasonCode is
+  unknown or does not read revokes.
+- **Decision, an issuer held on its root's list is not accepted,
+  whatever the reason except `removeFromCRL`.** `init` has no clock, so
+  a `certificateHold` cannot be judged fresh or stale at build; both
+  implementations count it.
+- **Wire:** `init` takes `revocation_lists`, `revocation_issuers` and
+  `distrust` and answers `revocation_urls` and
+  `revocation_valid_until_ms`. Only `///` lines of the WIT changed, so
+  `aprv:verifier@0.2.0` keeps its version (R46). `aprv-server` takes the
+  same settings as flags or in the managed configuration line, and
+  `/v1/info` reports them so a client can refuse a server configured
+  differently.
+- **Not done:** OCSP; OpenSSL's `X509_V_FLAG_CRL_CHECK`, which judges a
+  list's freshness at the payload's date and so fails every historical
+  verification; any download inside a library; revocation settings in
+  the C ABI, which gained only the reason code (R48 adds them).
+- **Divergences between the core and Java,** recorded under R20's rule:
+  - Which problem a refused configuration names first. The core reports
+    list problems, then issuers, then `distrust`; Java checks `distrust`
+    first. The verdict (refused) is the same; only the message differs,
+    and no case pins messages.
+  - A Name that is not DER (the AVAs of a SET out of order). Both
+    implementations hash such a name as encoded, but BouncyCastle
+    re-encodes the TBSCertificate before checking a signature, so Java
+    verifies a certificate with such a name only when it is the trust
+    anchor. The shared case puts it on the anchor for that reason. A
+    root the caller parsed with BouncyCastle is re-encoded before Java
+    sees it, so its issuer id is computed over DER; the JDK's parser
+    keeps the original bytes.
+  - An added issuer with an extension the JDK cannot read: a
+    pathLenConstraint that does not fit an int, a repeated extension, or
+    octets left after a keyUsage or basicConstraints value. Java refuses
+    the configuration; the core judges only the rules of the design's
+    section 6 and accepts it. Only a caller's own issuer is affected, and
+    the verdict of an input with the built-in issuers is unchanged.
+- **Cases:** 137 shared cases under `revocation/` in
+  `fixtures/cases.json` (schema version 3), from the test PKI that
+  `RevocationFixtures` generates under `fixtures/generated-0.7/revocation/`
+  and Apple's two stale lists under `fixtures/apple-crls/`. The 1 MiB,
+  100,000-entry and 1,000-`distrust` bounds and an injected built-in list
+  are unit tests in each implementation (`rust/tests/revocation.rs`,
+  `RevocationTest`).
+
+## R48. Revocation settings in the C ABI: `init`'s JSON and two getters
+
+**Status: accepted** (2026-11-08). The owner asked for the settings and
+left the shape to whoever picked it up (ROADMAP.md, "C ABI revocation
+settings"); this is that choice, and the owner reviews it with the rest
+of the pull request. Amends R47's "Not done" and the C ABI sentence of
+docs/design/revocation.md §8.
+
+- **The gap it closes:** a C caller got `17` from the built-in list but
+  could not pass `revocation_lists`, `revocation_issuers` or `distrust`,
+  so a list published after the release, or a key the caller distrusts,
+  could not reach it. It could not read `revocationUrls` or
+  `revocationValidUntil` either, so it had nothing to download and
+  nothing to alert on. New exported symbols are the only way to carry
+  them: `aprv_verifier_new`'s signature is the ABI.
+- **Decision, the constructor:** `aprv_verifier_new` stays exactly as it
+  is, and `aprv_verifier_new_config` sits beside it. It takes the bytes
+  of the JSON `init` takes (`init-config.schema.json`, roots included),
+  reads them with `aprv_wire::read_init_config` and makes the verifier
+  with `InitConfig::verifier`, the two calls `aprv-abi` makes. So one
+  reader and one writer of refusals serve both boundaries, and a member
+  added to `init` later needs no new symbol. No bytes and `{}` are the
+  three Apple roots with no setting, as for `init`.
+- **Decision, the clock stays outside the JSON:** the third argument is
+  `aprv_verifier_new`'s `fixed_clock_unix_millis`. `init` has no clock,
+  since the module takes `now-ms` per call, so the schema has no member
+  for it, and adding one to the shared reader would let `aprv.wasm`
+  accept what it ignores.
+- **Decision, the refusal crosses as a status and a message:** it returns
+  the status, as the verify calls do, and writes the handle to
+  `*verifier` and the outcome to `*out`. A refused configuration is `102`
+  `INVALID_ARGUMENT` with `{"reason":"INVALID_ARGUMENT","message":"..."}`,
+  the document the 0.7 calls answer for a call mistake, and the message
+  is the one `init` gives: it names the first problem and its index,
+  which a host needs when one list of sixteen is refused.
+  `aprv_verifier_new`'s bare `NULL` could not say any of that.
+- **Decision, a panic writes nothing:** every step that can panic runs
+  before the first write, so a caught panic returns `103` with `*verifier`
+  and `*out` as the caller left them, as a panic in the verify calls
+  leaves `*out`. A handle written before a panic would be a handle the
+  caller is told does not exist. The return value is therefore the status
+  to read.
+- **Decision, the getters answer JSON text:**
+  `aprv_verifier_revocation_urls` and
+  `aprv_verifier_revocation_valid_until_ms` write the value `init`'s
+  answer holds in the member of the same name: an array of strings, and
+  a number or `null`. Each is freed with `aprv_string_free`. That is one
+  calling shape, one ownership rule and the crate's own interchange, and
+  a `null` needs no second out parameter: every `int64_t` names a real
+  instant, the reason the clock argument is a pointer.
+- **Rejected, all in one call:** a C struct of the settings is a pointer
+  and a length per member and per entry, ABI for each member added, and
+  a second copy of `read_init_config`'s rules. One setter per setting
+  makes a handle mutable, which the header promises it is not, and a
+  host refreshes by building a new verifier (docs/design/revocation.md
+  §9).
+- **Rejected, `aprv_verifier_new` taking the JSON:** changing its
+  signature breaks every 0.7 caller to serve the ones that need
+  revocation settings.
+- **Rejected, `out->json` holding `init`'s whole answer:** it would save
+  the getters, but a C caller would parse a document for two values and
+  keep them for as long as it keeps the handle. It would also make a
+  refusal `{"ok":false,...}` in a struct whose other non-zero documents
+  name a reason.
+- **Rejected, a typed `int64_t` and a `bool` for the instant:** two out
+  parameters on one getter, for a value a monitor reads rarely, beside a
+  sibling that has to be text anyway.
+- **Not done:** the Elixir example binds `aprv_verifier_new` alone, so its
+  run still counts the revocation cases as not reachable; the C++ and
+  ctypes harnesses run them. The header's reason code and the surface's
+  reasons are unchanged. No verification behaviour moves, so the core,
+  Java and `fixtures/` do not change.
+
+---
+
 ## Rejected alternatives
 
 One table for everything the plan measured or considered and rejected.
@@ -2796,11 +2967,13 @@ One table for everything the plan measured or considered and rejected.
 | Keeping .NET's hand-written JSON reader and writer | 610 lines of grammar and escaping the package maintains, for answers `System.Text.Json` reads; it existed only to keep netstandard2.0 free of a package dependency (R41) | [.NET JSON][stjout] | — |
 | Keeping `aprv-wire`'s hand-written JSON writer | An escaper and object builder the project maintains, for output `serde_json`, already in the build, writes byte for byte the same; a test pins a fully populated answer to the old writer's text (R40, amended 2026-10-02) | `rust/bindings/wire/src/lib.rs`, its tests | — |
 | `serde_json` variant A, `Map<String, Value>` | Builds a tree of unsigned input at up to 126 times its size: 396 MB for one 3 MiB request and 25 MB for one JWS segment, against 521 bytes for the map of raw values (R40) | [serde_json][jsonserde] | — |
+| A C struct of the revocation settings, or one setter per setting, in the C ABI | Not measured. A struct is ABI for every member and a second copy of `read_init_config`'s rules; a setter makes an immutable handle mutable (R48) | The review of 2026-11-08; no evidence note | — |
 
 [abi]: ../evidence/2026-09-26-wasm-abi-v1.md
 [cabi]: ../evidence/2026-09-29-canonical-abi-spike.md
 [cabifinal]: ../evidence/2026-09-29-canonical-abi-final.md
 [enumlift]: ../evidence/2026-11-02-abi-0.2-enum-lift.md
+[revsurvey]: ../evidence/2026-11-05-apple-revocation-survey.md
 [api07]: ../design/0.7-api.md
 [cms]: ../evidence/2026-09-26-openssl-cms-everywhere.md
 [dotnet]: ../evidence/2026-09-26-dotnet-wasmtime.md
