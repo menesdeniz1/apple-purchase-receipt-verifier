@@ -2,21 +2,21 @@
 
 State as of 2026-11-08. The work has stopped at a clean point and is being passed to someone else. Nothing is running.
 
-This file lives only on the fork's `handoff/pr535` branch. That branch starts from `review/pr535-fixes` plus this one commit, so it is not part of PR 544.
+This file lives only on the fork's `handoff/pr535` branch. That branch starts from `review/pr535-fixes` and adds only this file, so it is not part of PR 544.
 
 ## Read this first
 
-- **PR 544 is closed and was not merged.** The `menesdeniz1` account closed it at 2026-11-08 19:29:09 UTC, with no comment. The reason is not recorded here. Ask the user before reopening it or opening another PR.
-- **Do not push to `review/pr535-fixes`.** It is the head of PR 544, which the repository owner can still see, so keep it at `012c84f9`.
+- **PR 544 was opened on 2026-11-08 and closed unmerged at the user's request.** Its text stays visible on the upstream repository. Do not reopen it. The fixes live only on the fork: `review/pr535-fixes` and fork PR 1.
+- **Do not push to `review/pr535-fixes` and do not touch fork PR 1.** Keep the branch at `012c84f9`.
 - **One security finding is with the user for private reporting. Its details are not here.** The user has not decided yet and nothing has been sent. Do not raise it in a public place. `SECURITY.md` asks for private reporting.
-- **Do not push, comment, review or message on `emindeniz99/apple-purchase-receipt-verifier`** unless the user says so. PR 544 was opened on one explicit approval, and that approval covered that PR only.
+- **No PR, comment, push or message to `emindeniz99/apple-purchase-receipt-verifier` unless the user explicitly asks.** This covers `gh pr create` and every other command aimed at upstream, and it binds workers too. The one approval behind PR 544 is used up and does not carry over.
 - **Do not delete anything:** branches, clones, caches or logs. No force-push.
 
 ## Pull requests
 
 | PR | Where | Base | Head | State |
 |---|---|---|---|---|
-| [544](https://github.com/emindeniz99/apple-purchase-receipt-verifier/pull/544) | Upstream | `claude/rust-core-migration-plan-lkq2zr` (`8c1de982`) | `menesdeniz1:review/pr535-fixes` (`012c84f9`) | **Closed, not merged**, no owner response, 21 commits, 52 files |
+| [544](https://github.com/emindeniz99/apple-purchase-receipt-verifier/pull/544) | Upstream | `claude/rust-core-migration-plan-lkq2zr` (`8c1de982`) | `menesdeniz1:review/pr535-fixes` (`012c84f9`) | **Closed unmerged at the user's request**, text stays visible, no owner response, 21 commits, 52 files |
 | [1](https://github.com/menesdeniz1/apple-purchase-receipt-verifier/pull/1) | Fork | `main` (`fccf0c2b`) | `review/pr535-fixes` (`012c84f9`) | Open, CI only, not for upstream, keep it |
 | [535](https://github.com/emindeniz99/apple-purchase-receipt-verifier/pull/535) | Upstream | `main` | `claude/rust-core-migration-plan-lkq2zr` (`8c1de982`) | Open, the owner's PR being reviewed |
 
@@ -83,9 +83,9 @@ All runs are on the fork, through fork PR 1, so they test the branch merged with
 - **Fuzz:** `rust/fuzz/fuzz_targets/ffi.rs` does not cover the new C ABI exports.
 - **Upstream CI:** it has not run on PR 544.
 
-## Left for the owner's decision
+## Decisions that belong to the repository owner
 
-These were not changed. All but the last are also listed in the PR 544 description.
+These were not changed, and nothing further is being sent to the owner. They apply only if the user ever chooses to take the work upstream. All but the last are also listed in the PR 544 description.
 
 - **R48 (new):** the C ABI design needs the owner's review.
 - **Java `pathLenConstraint` divergence:** Java refuses an added issuer whose value overflows an int, and the core accepts it. This is recorded in R47, with no shared case. Java can be switched to accept it instead.
@@ -93,9 +93,7 @@ These were not changed. All but the last are also listed in the PR 544 descripti
 - **Times outside RFC 5280 in a signed list:** Java and the core differ. This is not in R20 or R47 and has no shared case.
 - **Go and Swift from source:** the committed modules lag the new wrappers until a release refreshes the pins.
 - **One rejected list stops a whole refresh:** a README sentence was added and the behaviour was not changed.
-- **`aprv-server` first `init` trace:** it exits 2 where the README says 70.
-- **Note on PR 544 being closed:** the owner can still read its description, but nothing is waiting on the owner while it is closed.
-- **§5 and §11 wording:** a non-null `revocationValidUntil` does not mean every accepted path is covered.
+- **`aprv-server` first `init` trace:** it exits 2 where the README says 70.- **§5 and §11 wording:** a non-null `revocationValidUntil` does not mean every accepted path is covered.
 - **Smaller items:**
   - `/v1/info` is not compared on `component_sha256`.
   - The revocation watch workflow only goes red and does not check `nextUpdate`.
@@ -114,7 +112,7 @@ These were not changed. All but the last are also listed in the PR 544 descripti
   - A local `node --test`
   - `gh pr create` from this session
 
-  The user approved the remote directly. The parent session opened the fork, and later opened PR 544 after the user approved it.
+  The user approved the remote directly. The parent session opened the fork, later opened PR 544 after the user approved it, and closed it at the user's request.
 - **Leftovers:** a few temporary files remain on the machine (`/tmp/main.txt`, `/tmp/x_notes`, `/tmp/n`), plus a `__pycache__` folder in a worker's tools directory. They were kept because of the no-delete rule.
 - **CPU limit from the user:** run at most one worker at a time and no heavy local commands. Keep verification on fork CI.
 - **Review notes are not published.** The fork is public, so the full review and the analysis report stay on the user's machine. Ask the user for them.
@@ -124,8 +122,8 @@ These were not changed. All but the last are also listed in the PR 544 descripti
 
 ## Next steps
 
-1. Ask the user why PR 544 was closed and whether the work should go upstream at all. Do not reopen it, change the branch or comment until the user decides.
-2. Get the user's decision on the private security report.
+1. No PR, comment, push or message to upstream unless the user explicitly asks. All further work stays on the fork.
+2. The private security report stays with the user. Nothing has been sent, and nothing goes unless the user explicitly asks.
 3. If the user turns the nightly on for the fork, run the Differential and record the result. Otherwise `88f7a8e0` stays unverified. New divergences go into R20 or R47, or get fixed. Never edit a case to make an implementation pass.
 4. Compile the README examples through a CI job, starting with the three named above.
-5. Bind the Elixir example to `aprv_verifier_new_config` and extend `rust/fuzz/fuzz_targets/ffi.rs`. Use a new branch and do not add to PR 544 without the user's approval.
+5. Bind the Elixir example to `aprv_verifier_new_config` and extend `rust/fuzz/fuzz_targets/ffi.rs`. Use a new branch on the fork.
